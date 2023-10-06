@@ -24,9 +24,7 @@ const createServer = () => {
 
         if (req.method === 'GET') {
             try {
-                console.log('state, city: ', state, city)
                 const population = await getPopulation(state, city);
-                console.log('pop: ', population)
                 if (population === null) {
                     res.writeHead(400);
                     return res.end(JSON.stringify({ error: `No data found for state: ${state} and city: ${city}` }));
