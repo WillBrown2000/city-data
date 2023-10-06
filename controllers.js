@@ -19,6 +19,7 @@ const dbPool = new Pool({
     database: 'db',
     password: 'secret_password',
     port: 5432,
+    idleTimeoutMillis: 10000,
 });
 
 
