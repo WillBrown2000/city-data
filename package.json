@@ -1,0 +1,32 @@
+{
+  "name": "population-api",
+  "version": "1.0.0",
+  "description": "API to retrieve and update population data",
+  "main": "server.js",
+  "scripts": {
+    "start": "docker-compose up -d && sleep 10 && node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "load-test": "artillery run config.yml"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/population-api.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yourusername/population-api/issues"
+  },
+  "homepage": "https://github.com/yourusername/population-api#readme",
+  "dependencies": {
+    "csv-parser": "^3.0.0",
+    "http": "^0.0.1-security",
+    "memcached": "^2.2.2",
+    "pg": "^8.7.1",
+    "qs": "^6.10.2",
+    "url": "^0.11.0"
+  },
+  "devDependencies": {
+    "artillery": "*"
+  }
+}

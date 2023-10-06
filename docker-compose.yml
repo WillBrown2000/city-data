@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  memcached:
+    image: "memcached:alpine"
+    ports:
+      - "11211:11211"
+
+  db-master:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db_w:/var/lib/postgresql/data
+      # - ./pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
+    command: postgres -c wal_level=replica -c max_wal_senders=8 -c min_wal_size=1GB -c max_wal_size=4GB
+
+  db-replica-1:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: db
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./db_r1:/var/lib/postgresql/data
+    depends_on:
+      - db-master
+    command: postgres -c hot_standby=on -c wal_level=replica -c max_wal_senders=8 -c min_wal_size=1GB -c max_wal_size=4GB -c primary_conninfo="host=db-master port=5433 user=username password=secret_password"
+
+  db-replica-2:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: db
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./db_r2:/var/lib/postgresql/data
+    depends_on:
+      - db-master
+    command: postgres -c hot_standby=on -c wal_level=replica -c max_wal_senders=8 -c min_wal_size=1GB -c max_wal_size=4GB -c primary_conninfo="host=db-master port=5433 user=username password=secret_password"
+
+  db-replica-3:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: db
+    ports:
+      - "5436:5432"
+    volumes:
+      - ./db_r3:/var/lib/postgresql/data
+    depends_on:
+      - db-master
+    command: postgres -c hot_standby=on -c wal_level=replica -c max_wal_senders=8 -c min_wal_size=1GB -c max_wal_size=4GB -c primary_conninfo="host=db-master port=5433 user=username password=secret_password"
+
+  db-replica-4:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: db
+    ports:
+      - "5437:5432"
+    volumes:
+      - ./db_r4:/var/lib/postgresql/data
+    depends_on:
+      - db-master
+    command: postgres -c hot_standby=on -c wal_level=replica -c max_wal_senders=8 -c min_wal_size=1GB -c max_wal_size=4GB -c primary_conninfo="host=db-master port=5433 user=username password=secret_password"
+
+volumes:
+  postgres_data_master:
+  postgres_data_replica_1:
+  postgres_data_replica_2:
+  postgres_data_replica_3:
+  postgres_data_replica_4:
