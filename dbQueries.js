@@ -66,7 +66,6 @@ const getPopulation = async (state, city) => {
 
 const upsertPopulation = async (state, city, population) => {
     try {
-        // Ensure the state exists, and get its ID
         const stateRes = await writePool.query(
             `INSERT INTO States (state_name)
              VALUES ($1)
@@ -76,17 +75,21 @@ const upsertPopulation = async (state, city, population) => {
             [state]
         );
 
-        // Ensure the city exists with the right population, and link to the state
         const cityRes = await writePool.query(
             `INSERT INTO Cities (city_name, state_id, population)
              VALUES ($1, $2, $3)
              ON CONFLICT (city_name, state_id)
              DO UPDATE SET population = EXCLUDED.population
-             RETURNING *`,
+             RETURNING *, xmax`,
             [city, stateRes.rows[0].state_id, population]
         );
 
-        return cityRes.rows;
+        const wasUpdated = cityRes.rows[0].xmax !== '0';
+
+        return {
+            ...cityRes.rows[0],
+            wasUpdated
+        };
     } catch (err) {
         console.error("Error upserting population:", err);
         throw err;
