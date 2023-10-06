@@ -1,4 +1,4 @@
-const { createTables, seedDataFromCSV } = require('./dbQueries');
+import { createTables, seedDataFromCSV } from './controllers.js';
 
 const initDB = async () => {
     try {
@@ -14,6 +14,6 @@ const initDB = async () => {
     }
 };
 
-module.exports = {
+export {
     initDB
 };

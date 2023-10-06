@@ -2,10 +2,10 @@ config:
   target: 'http://localhost:5555'
   phases:
     - duration: 30
-      arrivalRate: 200
+      arrivalRate: 1000
 
 scenarios:
   - flow:
       - get:
-          url: "/api/population/state/Texas/Austin"
+          url: "/api/population/state/Texas/city/Austin"
       - log: "Fetched population for Austin, Texas."

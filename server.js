@@ -1,9 +1,11 @@
-const http = require('http');
-const url = require('url');
-const { getPopulation, upsertPopulation } = require('./dbQueries');
-const { initDB } = require('./initDB.js');
-const cluster = require('cluster');
-const os = require('os');
+import http from 'http';
+import url from 'url';
+import cluster from 'cluster';
+import os from 'os';
+import { initDB } from './initDB.js';
+import { getPopulation, upsertPopulation } from './controllers.js';
+
+
 
 initDB();
 
@@ -12,19 +14,20 @@ const createServer = () => {
         const parsedUrl = url.parse(req.url, true);
         const paths = parsedUrl.pathname.split('/').filter(Boolean);
 
-        if (paths.length !== 5 || paths[0] !== 'api' || paths[1] !== 'population' || paths[2] !== 'state') {
+        if (paths.length !== 6 || paths[0] !== 'api' || paths[1] !== 'population' || paths[2] !== 'state' || paths[4] !== 'city') {
             res.writeHead(404);
             return res.end('Not Found');
         }
 
-        let [, , , state, city] = paths;
-        state = state.toLowerCase()
-        city = city.toLowerCase()
+        let [, , , state, , city] = paths;
+        state = state.toLowerCase();
+        city = city.toLowerCase();
 
         if (req.method === 'GET') {
             try {
+                console.log('state, city: ', state, city)
                 const population = await getPopulation(state, city);
-
+                console.log('pop: ', population)
                 if (population === null) {
                     res.writeHead(400);
                     return res.end(JSON.stringify({ error: `No data found for state: ${state} and city: ${city}` }));
@@ -42,7 +45,6 @@ const createServer = () => {
             req.on('data', chunk => {
                 data += chunk;
             });
-
             req.on('end', async () => {
                 const population = Number(data);
 
@@ -51,20 +53,12 @@ const createServer = () => {
                     return res.end(JSON.stringify({ error: 'Invalid population data. Must be a non-negative integer.' }));
                 }
 
-                if (!state || !city || typeof state !== 'string' || typeof city !== 'string') {
-                    res.writeHead(400);
-                    return res.end(JSON.stringify({ error: 'Invalid state or city data. Must be non-empty strings.' }));
-                }
-
                 try {
-                    const { wasUpdated, cityRes } = await upsertPopulation(state, city, population);
 
-                    if (cityRes.rows.length > 0) {
-                        res.writeHead(wasUpdated ? 200 : 201);
-                        return res.end();
-                    } else {
-                        throw new Error('Data not updated');
-                    }
+                    const { wasUpdated } = await upsertPopulation(state, city, population);
+
+                    res.writeHead(wasUpdated ? 200 : 201);
+                    return res.end();
                 } catch (error) {
                     res.writeHead(400);
                     return res.end(JSON.stringify({ error: error.message }));
@@ -81,7 +75,7 @@ const createServer = () => {
     });
 };
 
-if (cluster.isMaster) {
+if (cluster.isPrimary) {
     console.log(`Master ${process.pid} is running`);
 
     for (let i = 0; i < os.cpus().length; i++) {
@@ -94,3 +88,7 @@ if (cluster.isMaster) {
 } else {
     createServer();
 }
+
+process.on('exit', () => {
+    redisClient.quit();
+});

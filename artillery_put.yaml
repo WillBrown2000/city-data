@@ -2,12 +2,12 @@ config:
   target: 'http://localhost:5555'
   phases:
     - duration: 60
-      arrivalRate: 250
+      arrivalRate: 200
 
 scenarios:
   - flow:
     - put:
-        url: '/api/population/state/TexaS/astiNj'
+        url: '/api/population/state/Texas/city/Austin'
         headers:
           Accept: '*/*'
           Content-Type: 'application/x-www-form-urlencoded'

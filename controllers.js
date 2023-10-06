@@ -1,72 +1,58 @@
-const fs = require('fs');
-const csv = require('csv-parser');
-const Memcached = require('memcached');
-const memcached = new Memcached("localhost:11211")
+import fs from 'fs';
+import csv from 'csv-parser';
+import pkg from 'pg';
+import redis from 'redis';
 
-const { Pool } = require('pg');
+const redisClient = await redis.createClient({
+    host: 'localhost',
+    port: 6379
+})
+    .on('error', err => console.log('Redis Client Error', err))
+    .connect();
 
-const writePool = new Pool({
+const { Pool } = pkg;
+
+const dbPool = new Pool({
     user: 'username',
     host: 'localhost',
     database: 'db',
     password: 'secret_password',
-    port: 5433,
-});
-
-const readPool1 = new Pool({
-    user: 'username',
-    host: 'localhost',
-    database: 'db',
-    password: 'secret_password',
-    port: 5434,
-});
-
-const readPool2 = new Pool({
-    user: 'username',
-    host: 'localhost',
-    database: 'db',
-    password: 'secret_password',
-    port: 5435,
-});
-
-const readPool3 = new Pool({
-    user: 'username',
-    host: 'localhost',
-    database: 'db',
-    password: 'secret_password',
-    port: 5436,
-});
-
-const readPool4 = new Pool({
-    user: 'username',
-    host: 'localhost',
-    database: 'db',
-    password: 'secret_password',
-    port: 5437,
+    port: 5432,
 });
 
 const getPopulation = async (state, city) => {
-    const readPools = [readPool1, readPool2, readPool3, readPool4];
-    const readPool = readPools[Math.floor(Math.random() * readPools.length)];
-
+    const redisKey = `${state}:${city}`;
     try {
-        const res = await writePool.query(
+        // Try to get the population from Redis first
+        const cachedPopulation = await redisClient.get(redisKey);
+        if (cachedPopulation !== null) {
+            return cachedPopulation;
+        }
+
+        // If not in Redis, get from the database
+        const res = await dbPool.query(
             `SELECT population
              FROM Cities c
              JOIN States s ON c.state_id = s.state_id
              WHERE s.state_name = $1 AND c.city_name = $2`,
             [state, city]
         );
-        return res.rows.length > 0 ? res.rows[0].population : null;
+
+        const population = res.rows.length > 0 ? res.rows[0].population : null;
+        if (population) {
+            redisClient.set(redisKey, population);
+        }
+        return population;
     } catch (err) {
         console.error("Error querying population:", err);
         throw err;
     }
 };
 
+
 const upsertPopulation = async (state, city, population) => {
     try {
-        const stateRes = await writePool.query(
+        const stateRes = await dbPool.query(
             `INSERT INTO States (state_name)
              VALUES ($1)
              ON CONFLICT (state_name)
@@ -75,7 +61,7 @@ const upsertPopulation = async (state, city, population) => {
             [state]
         );
 
-        const cityRes = await writePool.query(
+        const cityRes = await dbPool.query(
             `INSERT INTO Cities (city_name, state_id, population)
              VALUES ($1, $2, $3)
              ON CONFLICT (city_name, state_id)
@@ -85,6 +71,8 @@ const upsertPopulation = async (state, city, population) => {
         );
 
         const wasUpdated = cityRes.rows[0].xmax !== '0';
+
+        redisClient.set(`${state}:${city}`, population);
 
         return {
             cityRes,
@@ -98,7 +86,7 @@ const upsertPopulation = async (state, city, population) => {
 
 
 const createTables = async () => {
-    await writePool.query(`
+    await dbPool.query(`
         CREATE TABLE IF NOT EXISTS States (
             state_id SERIAL PRIMARY KEY,
             state_name VARCHAR(255) UNIQUE NOT NULL
@@ -134,16 +122,14 @@ const seedDataFromCSV = async (csv_file) => {
     const totalLines = await countLines(csv_file);
 
     fs.createReadStream(csv_file)
-        .pipe(csv({
-            headers: false
-        }))
+        .pipe(csv({ headers: false }))
         .on('data', (row) => {
             lineCount++;
             const progress = ((lineCount / totalLines) * 100).toFixed(2);
             process.stdout.write(`Processing: ${lineCount}/${totalLines} (${progress}%) \r`);
-            const city = row[0];
-            const state = row[1];
-            const population = row[2];
+            const city = row[0].toLowerCase();
+            const state = row[1].toLowerCase();
+            const population = row[2].toLowerCase();
 
             if (!city || !state || !population || isNaN(population) || parseInt(population) < 0) {
                 console.warn(`\nInvalid data detected on line ${lineCount} and skipped: ${JSON.stringify(row)}`);
@@ -155,14 +141,14 @@ const seedDataFromCSV = async (csv_file) => {
             console.log('\nData loading completed. Inserting to database...');
             for (const [city, state, population] of data) {
                 try {
-                    await writePool.query(`
+                    await dbPool.query(`
                         INSERT INTO States (state_name)
                         VALUES ($1)
                         ON CONFLICT (state_name)
                         DO NOTHING;
                     `, [state]);
 
-                    await writePool.query(`
+                    await dbPool.query(`
                         INSERT INTO Cities (city_name, state_id, population)
                         VALUES ($1, (SELECT state_id FROM States WHERE state_name = $2), $3)
                         ON CONFLICT (city_name, state_id)
@@ -170,16 +156,17 @@ const seedDataFromCSV = async (csv_file) => {
                     `, [city, state, population]);
 
                     const key = `${state.toLowerCase()}:${city.toLowerCase()}`;
-                    memcached.set(key, population.toString(), { expires: 600 });
+                    await redisClient.set(key, population);
                 } catch (err) {
                     console.error(`\nError inserting data [${city}, ${state}, ${population}]:`, err.message);
                 }
             }
+
+            await redisClient.quit();
         });
 };
-
-module.exports = {
-    writePool,
+export {
+    dbPool,
     getPopulation,
     createTables,
     seedDataFromCSV,
