@@ -7,7 +7,6 @@ import { getPopulation, upsertPopulation } from './controllers.js';
 
 
 
-initDB();
 
 const createServer = () => {
     const server = http.createServer(async (req, res) => {
@@ -77,7 +76,7 @@ const createServer = () => {
 
 if (cluster.isPrimary) {
     console.log(`Master ${process.pid} is running`);
-
+    initDB();
     for (let i = 0; i < os.cpus().length; i++) {
         cluster.fork();
     }

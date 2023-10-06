@@ -1,3 +1,4 @@
+import { promises as fsPromise } from 'fs';
 import fs from 'fs';
 import csv from 'csv-parser';
 import pkg from 'pg';
@@ -20,14 +21,43 @@ const dbPool = new Pool({
     port: 5432,
 });
 
+
+const checkInitializationStatus = async () => {
+    try {
+        const config = await fsPromise.readFile('init_check.config', 'utf-8');
+        const isInitialized = config.includes('initialized=true');
+        return isInitialized;
+    } catch (error) {
+        console.error('Error reading init_check.config:', error.message);
+        throw error;
+    }
+};
+
+
+const setInitializationStatus = async () => {
+    try {
+        await fsPromise.writeFile('init_check.config', 'initialized=true', 'utf-8');
+    } catch (error) {
+        console.error('Error writing to init_check.config:', error.message);
+        throw error;
+    }
+};
+
 const getPopulation = async (state, city) => {
     const redisKey = `${state}:${city}`;
     try {
-        // Try to get the population from Redis first
-        const cachedPopulation = await redisClient.get(redisKey);
+        let cachedPopulation;
+
+        try {
+            cachedPopulation = await redisClient.get(redisKey);
+        } catch (redisError) {
+            console.error('Error querying Redis:', redisError);
+        }
+
         if (cachedPopulation !== null) {
             return cachedPopulation;
         }
+
 
         // If not in Redis, get from the database
         const res = await dbPool.query(
@@ -120,6 +150,12 @@ const seedDataFromCSV = async (csv_file) => {
     const data = [];
     let lineCount = 0;
     const totalLines = await countLines(csv_file);
+    const isInitialized = await checkInitializationStatus();
+
+    if (isInitialized) {
+        console.log('Data is already seeded. To reseed, set initialized=false in init_check.config.');
+        return;
+    }
 
     fs.createReadStream(csv_file)
         .pipe(csv({ headers: false }))
@@ -161,9 +197,10 @@ const seedDataFromCSV = async (csv_file) => {
                     console.error(`\nError inserting data [${city}, ${state}, ${population}]:`, err.message);
                 }
             }
-
             await redisClient.quit();
         });
+    console.log('setting init status to true...')
+    await setInitializationStatus();
 };
 export {
     dbPool,
