@@ -57,11 +57,11 @@ const createServer = () => {
                 }
 
                 try {
-                    const {wasUpdated, dbRes} = await upsertPopulation(state, city, population);
+                    const { wasUpdated, cityRes } = await upsertPopulation(state, city, population);
 
-                    if (dbRes.length > 0) {
+                    if (cityRes.rows.length > 0) {
                         res.writeHead(wasUpdated ? 200 : 201);
-                        return res.end(JSON.stringify({ message: 'Population data updated successfully' }));
+                        return res.end();
                     } else {
                         throw new Error('Data not updated');
                     }

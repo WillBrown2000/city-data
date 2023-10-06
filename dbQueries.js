@@ -87,7 +87,7 @@ const upsertPopulation = async (state, city, population) => {
         const wasUpdated = cityRes.rows[0].xmax !== '0';
 
         return {
-            ...cityRes.rows[0],
+            cityRes,
             wasUpdated
         };
     } catch (err) {
